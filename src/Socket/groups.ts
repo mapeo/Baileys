@@ -137,6 +137,12 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			const result = getBinaryNodeChild(results, 'group')
 			return result.attrs.jid
 		},
+		groupGetInviteInfo: async(code: string) => {
+			const results = await groupQuery('@g.us', 'get', [{ tag: 'invite', attrs: { code } }])
+			const result = getBinaryNodeChild(results, 'group')
+
+			return result.attrs
+		},
 		groupAcceptInviteV4: async(jid: string, inviteMessage: proto.IGroupInviteMessage) => {
 			const results = await groupQuery(inviteMessage.groupJid, 'set', [{ tag: 'accept', attrs: {
 				code: inviteMessage.inviteCode,

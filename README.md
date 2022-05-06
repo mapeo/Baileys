@@ -762,8 +762,11 @@ Of course, replace ``` xyz ``` with an actual ID.
     console.log("joined to: " + response)
     ```
     Of course, replace ``` xxx ``` with invitation code.
-
-
+- To get info group by invite code
+    ```ts
+    const response = await sock.groupGetInviteInfo("xxx")
+    console.log("group information: " + response)
+    ```
 - To join the group using groupInviteMessage
     ``` ts
     const response = await sock.groupAcceptInviteV4(groupInviteMessage)
