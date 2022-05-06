@@ -1,15 +1,15 @@
 # Baileys - Typescript/Javascript WhatsApp Web API
- 
- Baileys does not require Selenium or any other browser to be interface with WhatsApp Web, it does so directly using a **WebSocket**. Not running Selenium or Chromimum saves you like **half a gig** of ram :/ 
+
+ Baileys does not require Selenium or any other browser to be interface with WhatsApp Web, it does so directly using a **WebSocket**. Not running Selenium or Chromimum saves you like **half a gig** of ram :/
 
  Baileys supports interacting with the multi-device & web versions of WhatsApp.
 
  Thank you to [@pokearaujo](https://github.com/pokearaujo/multidevice) for writing his observations on the workings of WhatsApp Multi-Device. Also, thank you to [@Sigalor](https://github.com/sigalor/whatsapp-web-reveng) for writing his observations on the workings of WhatsApp Web and thanks to [@Rhymen](https://github.com/Rhymen/go-whatsapp/) for the __go__ implementation.
 
  Baileys is type-safe, extensible and simple to use. If you require more functionality than provided, it'll super easy for you to write an extension. More on this [here](#WritingCustomFunctionality).
- 
+
  If you're interested in building a WhatsApp bot, you may wanna check out [WhatsAppInfoBot](https://github.com/adiwajshing/WhatsappInfoBot) and an actual bot built with it, [Messcat](https://github.com/ashokatechmin/Messcat).
- 
+
  **Read the docs [here](https://adiwajshing.github.io/Baileys)**
  **Join the Discord [here](https://discord.gg/WeJM5FP9GG)**
 
@@ -20,7 +20,7 @@ The script covers most common use cases.
 To run the example script, download or clone the repo and then type the following in terminal:
 1. ``` cd path/to/Baileys ```
 2. ``` yarn ```
-3. 
+3.
     - ``` yarn example ``` for the multi-device edition
     - ``` yarn example:legacy ``` for the legacy web edition
 
@@ -37,7 +37,7 @@ yarn add github:adiwajshing/baileys
 ```
 
 Then import in your code using:
-``` ts 
+``` ts
 // for multi-device
 import makeWASocket from '@adiwajshing/baileys'
 // for legacy web
@@ -81,7 +81,7 @@ async function connectToWhatsApp () {
 }
 // run in main file
 connectToWhatsApp()
-``` 
+```
 
 If the connection is successful, you will see a QR code printed on your terminal screen, scan it with WhatsApp on your phone and you'll be logged in!
 
@@ -105,7 +105,7 @@ type SocketConfig = {
     /** provide an auth state object to maintain the auth state */
     auth?: AuthenticationState
     /** the WS url to connect to WA */
-    waWebSocketUrl: string | URL 
+    waWebSocketUrl: string | URL
     /** Fails the connection if the connection times out in this time interval or no data is received */
 	connectTimeoutMs: number
     /** Default timeout for queries, undefined for no timeout */
@@ -126,8 +126,8 @@ type SocketConfig = {
     printQRInTerminal: boolean
     /** fires a conversationTimestamp & read count update on CIPHERTEXT messages */
     treatCiphertextMessagesAsReal: boolean
-    /** 
-     * fetch a message from your store 
+    /**
+     * fetch a message from your store
      * implement this so that messages failed to send (solves the "this message can take a while" issue) can be retried
      * */
     getMessage: (key: proto.IMessageKey) => Promise<proto.IMessage | undefined>
@@ -136,7 +136,7 @@ type SocketConfig = {
 
 ## Saving & Restoring Sessions
 
-You obviously don't want to keep scanning the QR code every time you want to connect. 
+You obviously don't want to keep scanning the QR code every time you want to connect.
 
 So, you can load the credentials to log back in:
 ``` ts
@@ -148,7 +148,7 @@ import * as fs from 'fs'
 const { state, saveState } = useSingleFileAuthState('./auth_info_multi.json')
 // will use the given state to connect
 // so if valid credentials are available -- it'll connect without QR
-const conn = makeWASocket({ auth: state }) 
+const conn = makeWASocket({ auth: state })
 // this will be called as soon as the credentials are updated
 conn.ev.on ('creds.update', saveState)
 ```
@@ -172,7 +172,7 @@ type ConnectionState = {
 	/** the current QR code */
 	qr?: string
 	/** has the device received all pending notifications while it was offline */
-	receivedPendingNotifications?: boolean 
+	receivedPendingNotifications?: boolean
 }
 ```
 
@@ -180,7 +180,7 @@ Note: this also offers any updates to the QR
 
 ## Handling Events
 
-Baileys uses the EventEmitter syntax for events. 
+Baileys uses the EventEmitter syntax for events.
 They're all nicely typed up, so you shouldn't have any issues with an Intellisense editor like VS Code.
 
 The events are typed up in a type map, as mentioned here:
@@ -208,12 +208,12 @@ export type BaileysEventMap = {
     'presence.update': { id: string, presences: { [participant: string]: PresenceData }  }
 
     'contacts.upsert': Contact[]
-    'contacts.update': Partial<Contact>[] 
-    
+    'contacts.update': Partial<Contact>[]
+
     'messages.delete': { keys: WAMessageKey[] } | { jid: string, all: true }
     'messages.update': WAMessageUpdate[]
-    /** 
-     * add/update the given messages. If they were received while the connection was online, 
+    /**
+     * add/update the given messages. If they were received while the connection was online,
      * the update will have type: "notify"
      *  */
     'messages.upsert': { messages: WAMessage[], type: MessageUpdateType }
@@ -315,7 +315,7 @@ import { AnyWASocket } from '@adiwajshing/baileys'
 ``` ts
 import { MessageType, MessageOptions, Mimetype } from '@adiwajshing/baileys'
 
-const id = 'abcd@s.whatsapp.net' // the WhatsApp ID 
+const id = 'abcd@s.whatsapp.net' // the WhatsApp ID
 // send a simple text!
 const sentMsg  = await sock.sendMessage(id, { text: 'oh hello there' })
 // send a reply messagge
@@ -324,22 +324,22 @@ const sentMsg  = await sock.sendMessage(id, { text: 'oh hello there' }, { quoted
 const sentMsg  = await sock.sendMessage(id, { text: '@12345678901', mentions: ['12345678901@s.whatsapp.net'] })
 // send a location!
 const sentMsg  = await sock.sendMessage(
-    id, 
+    id,
     { location: { degreesLatitude: 24.121231, degreesLongitude: 55.1121221 } }
 )
 // send a contact!
 const vcard = 'BEGIN:VCARD\n' // metadata of the contact card
-            + 'VERSION:3.0\n' 
+            + 'VERSION:3.0\n'
             + 'FN:Jeff Singh\n' // full name
             + 'ORG:Ashoka Uni;\n' // the organization of the contact
             + 'TEL;type=CELL;type=VOICE;waid=911234567890:+91 12345 67890\n' // WhatsApp ID + phone number
             + 'END:VCARD'
 const sentMsg  = await sock.sendMessage(
     id,
-    { 
-        contacts: { 
-            displayName: 'Jeff', 
-            contacts: [{ vcard }] 
+    {
+        contacts: {
+            displayName: 'Jeff',
+            contacts: [{ vcard }]
         }
     }
 )
@@ -426,7 +426,7 @@ const sentMsg  = await sock.sendMessage(id, { text: 'Hi, this was sent using htt
 
 ### Media Messages
 
-Sending media (video, stickers, images) is easier & more efficient than ever. 
+Sending media (video, stickers, images) is easier & more efficient than ever.
 - You can specify a buffer, a local url or even a remote url.
 - When specifying a media url, Baileys never loads the entire buffer into memory, it even encrypts the media as a readable stream.
 
@@ -434,18 +434,18 @@ Sending media (video, stickers, images) is easier & more efficient than ever.
 import { MessageType, MessageOptions, Mimetype } from '@adiwajshing/baileys'
 // Sending gifs
 await sock.sendMessage(
-    id, 
-    { 
-        video: fs.readFileSync("Media/ma_gif.mp4"), 
+    id,
+    {
+        video: fs.readFileSync("Media/ma_gif.mp4"),
         caption: "hello!",
         gifPlayback: true
     }
 )
 
 await sock.sendMessage(
-    id, 
-    { 
-        video: "./Media/ma_gif.mp4", 
+    id,
+    {
+        video: "./Media/ma_gif.mp4",
         caption: "hello!",
         gifPlayback: true
     }
@@ -453,7 +453,7 @@ await sock.sendMessage(
 
 // send an audio file
 await sock.sendMessage(
-    id, 
+    id,
     { audio: { url: "./Media/audio.mp3" }, mimetype: 'audio/mp4' }
     { url: "Media/audio.mp3" }, // can send mp3, mp4, & ogg
 )
@@ -494,8 +494,8 @@ const sendMsg = await sock.sendMessage(id, templateMessage)
 
 ### Notes
 
-- `id` is the WhatsApp ID of the person or group you're sending the message to. 
-    - It must be in the format ```[country code][phone number]@s.whatsapp.net```, for example ```+19999999999@s.whatsapp.net``` for people. For groups, it must be in the format ``` 123456789-123345@g.us ```. 
+- `id` is the WhatsApp ID of the person or group you're sending the message to.
+    - It must be in the format ```[country code][phone number]@s.whatsapp.net```, for example ```+19999999999@s.whatsapp.net``` for people. For groups, it must be in the format ``` 123456789-123345@g.us ```.
     - For broadcast lists it's `[timestamp of creation]@broadcast`.
     - For stories, the ID is `status@broadcast`.
 - For media messages, the thumbnail can be generated automatically for images & stickers provided you add `jimp` or `sharp` as a dependency in your project using `yarn add jimp` or `yarn add sharp`. Thumbnails for videos can also be generated automatically, though, you need to have `ffmpeg` installed on your system.
@@ -506,7 +506,7 @@ const sendMsg = await sock.sendMessage(id, templateMessage)
         contextInfo: { forwardingScore: 2, isForwarded: true }, // some random context info (can show a forwarded message with this too)
         timestamp: Date(), // optional, if you want to manually set the timestamp of the message
         caption: "hello there!", // (for media messages) the caption to send with the media (cannot be sent with stickers though)
-        jpegThumbnail: "23GD#4/==", /*  (for location & media messages) has to be a base 64 encoded JPEG if you want to send a custom thumb, 
+        jpegThumbnail: "23GD#4/==", /*  (for location & media messages) has to be a base 64 encoded JPEG if you want to send a custom thumb,
                                     or set to null if you don't want to send a thumbnail.
                                     Do not enter this field if you want to automatically generate a thumb
                                 */
@@ -518,7 +518,7 @@ const sendMsg = await sock.sendMessage(id, templateMessage)
         ptt: true,
         // will detect links & generate a link preview automatically (default true)
         detectLinks: true,
-        /** Should it send as a disappearing messages. 
+        /** Should it send as a disappearing messages.
          * By default 'chat' -- which follows the setting of the chat */
         sendEphemeral: 'chat'
     }
@@ -532,7 +532,7 @@ await sock.sendMessage('1234@s.whatsapp.net', { forward: msg }) // WA forward th
 
 ## Reading Messages
 
-A set of message keys must be explicitly marked read now. 
+A set of message keys must be explicitly marked read now.
 In multi-device, you cannot mark an entire "chat" read as it were with Baileys Web.
 This does mean you have to keep track of unread messages.
 
@@ -552,7 +552,7 @@ The message ID is the unique identifier of the message that you are marking as r
 ## Update Presence
 
 ``` ts
-await sock.sendPresenceUpdate('available', id) 
+await sock.sendPresenceUpdate('available', id)
 
 ```
 This lets the person/group with ``` id ``` know whether you're online, offline, typing etc. where ``` presence ``` can be one of the following:
@@ -626,8 +626,8 @@ WA uses an encrypted form of communication to send chat/app updates. This has be
 - Delete message for me
   ``` ts
   await sock.chatModify(
-      { clear: { message: { id: 'ATWYHDNNWU81732J', fromMe: true } } }, 
-      '123456@s.whatsapp.net', 
+      { clear: { message: { id: 'ATWYHDNNWU81732J', fromMe: true } } },
+      '123456@s.whatsapp.net',
       []
   )
   ```
@@ -640,7 +640,7 @@ Note: if you mess up one of your updates, WA can log you out of all your devices
 const jid = '1234@s.whatsapp.net' // can also be a group
 // turn on disappearing messages
 await sock.sendMessage(
-    jid, 
+    jid,
     // this is 1 week in seconds -- how long you want messages to appear for
     { disappearingMessagesInChat: WA_DEFAULT_EPHEMERAL }
 )
@@ -648,7 +648,7 @@ await sock.sendMessage(
 await sock.sendMessage(jid, { text: 'hello' }, { ephemeralExpiration: WA_DEFAULT_EPHEMERAL })
 // turn off disappearing messages
 await sock.sendMessage(
-    jid, 
+    jid,
     { disappearingMessagesInChat: false }
 )
 
@@ -687,7 +687,7 @@ await sock.sendMessage(
     // the presence update is fetched and called here
     sock.ev.on('presence-update', json => console.log(json))
     // request updates for a chat
-    await sock.presenceSubscribe("xyz@s.whatsapp.net") 
+    await sock.presenceSubscribe("xyz@s.whatsapp.net")
     ```
 - To block or unblock user
     ``` ts
@@ -699,7 +699,7 @@ await sock.sendMessage(
     const profile = await sock.getBusinessProfile("xyz@s.whatsapp.net")
     console.log("business description: " + profile.description + ", category: " + profile.category)
     ```
-Of course, replace ``` xyz ``` with an actual ID. 
+Of course, replace ``` xyz ``` with an actual ID.
 
 ## Groups
 - To create a group
@@ -713,7 +713,7 @@ Of course, replace ``` xyz ``` with an actual ID.
     ``` ts
     // id & people to add to the group (will throw error if it fails)
     const response = await sock.groupParticipantsUpdate(
-        "abcd-xyz@g.us", 
+        "abcd-xyz@g.us",
         ["abcd@s.whatsapp.net", "efgh@s.whatsapp.net"],
         "add" // replace this parameter with "remove", "demote" or "promote"
     )
@@ -753,7 +753,7 @@ Of course, replace ``` xyz ``` with an actual ID.
     ```
 - To query the metadata of a group
     ``` ts
-    const metadata = await sock.groupMetadata("abcd-xyz@g.us") 
+    const metadata = await sock.groupMetadata("abcd-xyz@g.us")
     console.log(metadata.id + ", title: " + metadata.subject + ", description: " + metadata.desc)
     ```
 - To join the group using the invitation code
@@ -795,9 +795,9 @@ const sock = makeWASocket({
 This will enable you to see all sorts of messages WhatsApp sends in the console. Some examples:
 
 1. Functionality to track of the battery percentage of your phone.
-    You enable logging and you'll see a message about your battery pop up in the console: 
-    ```{"level":10,"fromMe":false,"frame":{"tag":"ib","attrs":{"from":"@s.whatsapp.net"},"content":[{"tag":"edge_routing","attrs":{},"content":[{"tag":"routing_info","attrs":{},"content":{"type":"Buffer","data":[8,2,8,5]}}]}]},"msg":"communication"} ``` 
-    
+    You enable logging and you'll see a message about your battery pop up in the console:
+    ```{"level":10,"fromMe":false,"frame":{"tag":"ib","attrs":{"from":"@s.whatsapp.net"},"content":[{"tag":"edge_routing","attrs":{},"content":[{"tag":"routing_info","attrs":{},"content":{"type":"Buffer","data":[8,2,8,5]}}]}]},"msg":"communication"} ```
+
    The "frame" is what the message received is, it has three components:
    - `tag` -- what this frame is about (eg. message will have "message")
    - `attrs` -- a string key-value pair with some metadata (contains ID of the message usually)
