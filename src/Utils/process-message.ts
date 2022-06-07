@@ -1,14 +1,14 @@
 import type { Logger } from 'pino'
 import { proto } from '../../WAProto'
-import { AccountSettings, BaileysEventMap, Chat, GroupMetadata, ParticipantAction, SignalKeyStoreWithTransaction, WAMessageStubType } from '../Types'
+import { AuthenticationCreds, BaileysEventMap, Chat, GroupMetadata, ParticipantAction, SignalKeyStoreWithTransaction, WAMessageStubType } from '../Types'
 import { downloadAndProcessHistorySyncNotification, normalizeMessageContent, toNumber } from '../Utils'
 import { areJidsSameUser, jidNormalizedUser } from '../WABinary'
 
 type ProcessMessageContext = {
 	historyCache: Set<string>
-	meId: string
+	downloadHistory: boolean
+	creds: AuthenticationCreds
 	keyStore: SignalKeyStoreWithTransaction
-	accountSettings: AccountSettings
 	logger?: Logger
 	treatCiphertextMessagesAsReal?: boolean
 }
@@ -20,10 +20,28 @@ const MSG_MISSED_CALL_TYPES = new Set([
 	WAMessageStubType.CALL_MISSED_VOICE
 ])
 
+/** Cleans a received message to further processing */
+export const cleanMessage = (message: proto.IWebMessageInfo, meId: string) => {
+	// ensure remoteJid doesn't have device or agent in it
+	message.key.remoteJid = jidNormalizedUser(message.key.remoteJid!)
+	const content = normalizeMessageContent(message.message)
+	// if the message has a reaction, ensure fromMe & remoteJid are from our perspective
+	if(content?.reactionMessage) {
+		const msgKey = content.reactionMessage.key!
+		if(!message.key.fromMe) {
+			msgKey.fromMe = areJidsSameUser(msgKey.participant || msgKey.remoteJid, meId)
+			msgKey.remoteJid = message.key.remoteJid
+			msgKey.participant = msgKey.participant || message.key.participant
+		}
+	}
+}
+
 const processMessage = async(
 	message: proto.IWebMessageInfo,
-	{ historyCache, meId, keyStore, accountSettings, logger, treatCiphertextMessagesAsReal }: ProcessMessageContext
+	{ downloadHistory, historyCache, creds, keyStore, logger, treatCiphertextMessagesAsReal }: ProcessMessageContext
 ) => {
+	const meId = creds.me!.id
+	const { accountSettings } = creds
 	const map: Partial<BaileysEventMap<any>> = { }
 
 	const chat: Partial<Chat> = { id: jidNormalizedUser(message.key.remoteJid) }
@@ -59,18 +77,31 @@ const processMessage = async(
 
 			logger?.info({ histNotification, id: message.key.id }, 'got history notification')
 
-			const { chats, contacts, messages, isLatest } = await downloadAndProcessHistorySyncNotification(histNotification, historyCache)
+			if(downloadHistory) {
+				const { chats, contacts, messages, didProcess } = await downloadAndProcessHistorySyncNotification(histNotification, historyCache)
+				const isLatest = historyCache.size === 0 && !creds.processedHistoryMessages?.length
 
-			if(chats.length) {
-				map['chats.set'] = { chats, isLatest }
-			}
+				if(chats.length) {
+					map['chats.set'] = { chats, isLatest }
+				}
 
-			if(messages.length) {
-				map['messages.set'] = { messages, isLatest }
-			}
+				if(messages.length) {
+					map['messages.set'] = { messages, isLatest }
+				}
 
-			if(contacts.length) {
-				map['contacts.set'] = { contacts }
+				if(contacts.length) {
+					map['contacts.set'] = { contacts }
+				}
+
+				if(didProcess) {
+					map['creds.update'] = {
+						...(map['creds.update'] || {}),
+						processedHistoryMessages: [
+							...(creds.processedHistoryMessages || []),
+							{ key: message.key, timestamp: message.messageTimestamp }
+						]
+					}
+				}
 			}
 
 			break
@@ -121,13 +152,11 @@ const processMessage = async(
 			key: message.key,
 		}
 		const operation = content.reactionMessage?.text ? 'add' : 'remove'
-		const msgKey = content.reactionMessage!.key!
-		if(!message.key.fromMe) {
-			msgKey.remoteJid = message.key.remoteJid
-			msgKey.fromMe = !msgKey.fromMe
+		map['messages.reaction'] = {
+			reaction,
+			key: content.reactionMessage!.key!,
+			operation
 		}
-
-		map['messages.reaction'] = { reaction, key: msgKey, operation }
 	} else if(message.messageStubType) {
 		const jid = message.key!.remoteJid!
 		//let actor = whatsappID (message.participant)
