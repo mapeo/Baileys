@@ -13,7 +13,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const {
 		logger,
 		retryRequestDelayMs,
-		getMessage
+		getMessage,
+		shouldIgnoreJid
 	} = config
 	const sock = makeMessagesSocket(config)
 	const {
@@ -253,7 +254,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_RESTRICT
 			msg.messageStubParameters = [ (child.tag === 'locked') ? 'on' : 'off' ]
 			break
-
+		case 'invite':
+			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_INVITE_LINK
+			msg.messageStubParameters = [ child.attrs.code ]
+			break
 		}
 	}
 
@@ -264,6 +268,21 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const from = jidNormalizedUser(node.attrs.from)
 
 		switch (nodeType) {
+		case 'privacy_token':
+			const tokenList = getBinaryNodeChildren(child, 'token')
+			for(const { attrs, content } of tokenList) {
+				const jid = attrs.jid
+				ev.emit('chats.update', [
+					{
+						id: jid,
+						tcToken: content as Buffer
+					}
+				])
+
+				logger.debug({ jid }, 'got privacy token update')
+			}
+
+			break
 		case 'w:gp2':
 			handleGroupNotification(node.attrs.participant, child, result)
 			break
@@ -400,17 +419,23 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const remoteJid = !isNodeFromMe || isJidGroup(attrs.from) ? attrs.from : attrs.recipient
 		const fromMe = !attrs.recipient || (attrs.type === 'retry' && isNodeFromMe)
 
-		const ids = [attrs.id]
-		if(Array.isArray(content)) {
-			const items = getBinaryNodeChildren(content[0], 'item')
-			ids.push(...items.map(i => i.attrs.id))
-		}
-
 		const key: proto.IMessageKey = {
 			remoteJid,
 			id: '',
 			fromMe,
 			participant: attrs.participant
+		}
+
+		if(shouldIgnoreJid(remoteJid)) {
+			logger.debug({ remoteJid }, 'ignoring receipt from jid')
+			await sendMessageAck(node)
+			return
+		}
+
+		const ids = [attrs.id]
+		if(Array.isArray(content)) {
+			const items = getBinaryNodeChildren(content[0], 'item')
+			ids.push(...items.map(i => i.attrs.id))
 		}
 
 		await Promise.all([
@@ -478,6 +503,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	const handleNotification = async(node: BinaryNode) => {
 		const remoteJid = node.attrs.from
+		if(shouldIgnoreJid(remoteJid)) {
+			logger.debug({ remoteJid, id: node.attrs.id }, 'ignored notification')
+			await sendMessageAck(node)
+			return
+		}
+
 		await Promise.all([
 			processingMutex.mutex(
 				async() => {
@@ -504,11 +535,17 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	}
 
 	const handleMessage = async(node: BinaryNode) => {
-		const { fullMessage: msg, category, author, decryptionTask } = decodeMessageStanza(node, authState)
+		const { fullMessage: msg, category, author, decrypt } = decodeMessageStanza(node, authState)
+		if(shouldIgnoreJid(msg.key.remoteJid!)) {
+			logger.debug({ key: msg.key }, 'ignored message')
+			await sendMessageAck(node)
+			return
+		}
+
 		await Promise.all([
 			processingMutex.mutex(
 				async() => {
-					await decryptionTask
+					await decrypt()
 					// message failed to decrypt
 					if(msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT) {
 						logger.error(
@@ -545,7 +582,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 						}
 
 						await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
-
 
 						// send ack for history message
 						const isAnyHistoryMsg = getHistoryMsg(msg.message!)
@@ -619,26 +655,20 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	/// processes a node with the given function
 	/// and adds the task to the existing buffer if we're buffering events
-	const processNodeWithBuffer = (
+	const processNodeWithBuffer = async(
 		node: BinaryNode,
 		identifier: string,
 		exec: (node: BinaryNode) => Promise<any>
 	) => {
-		const task = exec(node)
-			.catch(err => onUnexpectedError(err, identifier))
-		ev.processInBuffer(task)
+		ev.buffer()
+		await execTask()
+		ev.flush()
+
+		function execTask() {
+			return exec(node)
+				.catch(err => onUnexpectedError(err, identifier))
+		}
 	}
-
-	// called when all offline notifs are handled
-	ws.on('CB:ib,,offline', async(node: BinaryNode) => {
-		const child = getBinaryNodeChild(node, 'offline')
-		const offlineNotifs = +(child?.attrs.count || 0)
-
-		logger.info(`handled ${offlineNotifs} offline messages/notifications`)
-		await ev.flush()
-
-		ev.emit('connection.update', { receivedPendingNotifications: true })
-	})
 
 	// recv a message
 	ws.on('CB:message', (node: BinaryNode) => {
